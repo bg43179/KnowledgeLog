@@ -1,9 +1,19 @@
 ### Todo
+* [ ] Transform tsv data to tdb and allowed it to be loaded by fuseki.
+* [ ] Desgin data structure/algorithm to load rule (Say we want to query launchSite, and country + countryOrigin => launchSite. Have to also query country and countryOrigin. Find proper stopping criteria.)
+
+Idea: 
+1. Select predicate to be queried
+2. Load rule
+3. Load data
+
+
+-------------------------------------------------------------------------
 
 03/14/2019
-* [ ] Store data retrieving from DBpedia
-* [ ] Set up Jena server for reading data from RDF
-* [ ] Set up Jena server for supporting RESFUl API
+* [V] Store data retrieving from DBpedia
+* [V] Set up Jena server for reading data from RDF
+* [V] Set up Jena server for supporting RESFUl API
 * [ ] Use SPARQL to query RDF
 
 -------------------------------------------------------------------------
