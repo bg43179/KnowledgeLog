@@ -27,14 +27,12 @@ def pull_from_fuseki(subject, predicate, obj, option):
 	elif option == 3:
 		body = "SELECT ?{s} ?{p} WHERE {{ ?{s} ?{p} {o} }} LIMIT 25".format(s=subject, p=predicate, o=obj)
 	
-	# print(body)
-	
 	response = requests.post('http://localhost:8080/dbpedia/',
-       data={'query': body})
+       data={'query': body})	
 	
-	# print(response.text)
 	# print the json in readable format
-	print(json.dumps(response.json(), indent=1))
+	# print(json.dumps(response.json(), indent=1))
+	# print(response.text)
 	return response.json()
 
 def cache(response, sub, predicate, obj, predicate_map = {}):
@@ -42,25 +40,23 @@ def cache(response, sub, predicate, obj, predicate_map = {}):
 		Method for pulling data form fuseki, support 4 different requests body
 
 	Args:
+		response: json(dict) return from fuseki server
 	    subject: subject
 	    predicate: predicate
 	    obj: object 
-	    predicate: Use for tracking if the relation(predicate) talbe already exist
-
-	Returns:
-	    return a json 
-
+	    predicate: Use for checking if the relation(predicate) talbe already exist
 	"""
-	# first create term for all the predicate
+	# first create terms for all the predicates
 	
-	# add a instance in this format (+prdicate(subject, object))
+	# add an instance in this format (+prdicate(subject, object))
 	for index, instance in enumerate(response['results']['bindings']):	
 		
 		current_pred = predicate
 		item = {}
 		
 		for key, value in instance.items():
-			# creat a new relation table if the predicate is not exist
+			
+			# create a new relation table if the given predicate is not exist, can be removed in our case
 			if key == predicate:
 				if key not in predicate_map:
 					pyDatalog.create_terms(value["value"].split(":")[1])
@@ -75,16 +71,16 @@ def cache(response, sub, predicate, obj, predicate_map = {}):
 		
 		# add the fact
 		pyDatalog.assert_fact(current_pred, item[sub], item[obj])
-	
-	# print(current_pred)
-	# print(pyDatalog.ask(current_pred + '("George_Orwell", X)'))
-	print(predicate_map)
-	# pass
 
 def loader(): 
 	"""
 		Method for loading rule and load data into memory(cache)
+
+		Args:
+			rules:
 	"""
+
+	# TODO: Transformer, load rule and generate a list of realtion
 
 	pyDatalog.load("influenced(X,Y) <= author(X,Y) & influencedBy(Y,Z)")
 	rules = ["influenced" ,"author", "influencedBy"]
@@ -92,7 +88,8 @@ def loader():
 	predicate_map = {}
 	
 	for predicate in rules:
-		# Have to make it asyn
+		
+		# TODO: Make it asyn?
 		sub, obj= "subject", "object"
 
 		if predicate not in predicate_map:
@@ -101,31 +98,21 @@ def loader():
 
 		response = pull_from_fuseki(sub, "<dbo:" + predicate +">", obj, 2)
 		cache(response, sub, predicate, obj, predicate_map)
-		
 
+def interface():	
+	# TODO: interface for user to input Datalog
+
+	pass
 if __name__ == "__main__":
 	
 
-	# D(x,y) <= R(X,Y) S(Y,Z);
-
-
 	# sub, pred, obj= "subject", "predicate", "object"
-
-	# sub = "subject"
-	# pred = "<dbo:author>"
-	# obj = "<db:George_Orwell>"
-	
-	# rule_loader: load rule, generate a list of rule for pull from fueski
-	# rule_loader()
 	# response = pull_from_fuseki(sub, pred, obj, 0);
 	# cache(sub, pred, obj)
+	
 	loader()
-
 	pyDatalog.create_terms("X", "Y", "Z")
 	# print(pyDatalog.ask("influenced" + '(X, Y)'))
 
-	
-	# rule_loader()
-	# print(pyDatalog.ask("influenced" + '(X, Y)'))
 	print(pyDatalog.ask("influenced" + '("George_Orwell", X)'))
 
