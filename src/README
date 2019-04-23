@@ -1,0 +1,31 @@
+------------------------ Instruction for fuseki server -----------------------------
+
+// pull docker image
+docker pull stain/jena-fuseki
+
+// -p to output the port, from 3030 to localhost:8080
+docker run -p 8080:3030 stain/jena-fuseki
+
+// -d to run in background
+docker run -d -e ADMIN_PASSWORD=pw123 -p 8080:3030 stain/jena-fuseki 
+
+
+
+------------------------ Data Persistence ------------------------------------------
+
+1. Use busybox (one kind of data container) to persist data.
+P.S It's okay that data container is not shown when running "docker ps".
+
+// -v define where other container can read the data
+// --name the container as fuseki-data
+// -it alllow interactive mode for fuseki-data, docker attach fuseki-data to enter interactive mode
+docker run -it --name fuseki-data -v /fuseki busybox 
+
+
+2. This should be called before loading data into fuseki-data, this command will build the path(/fuseki/databases) for fuseki-data
+
+// --volumes-from to read from the data container
+docker run -d -e ADMIN_PASSWORD=pw123 --name fuseki -p 8080:3030 --volumes-from fuseki-data stain/jena-fuseki
+
+3. Load data from your_path/dbpedia.3.8.nt to staging, name the dataset as dbpedia
+docker run --volumes-from fuseki-data -v your_path:/staging stain/jena-fuseki ./load.sh dbpedia dbpedia.3.8.nt

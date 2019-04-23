@@ -1,0 +1,8 @@
+# ignore all data
+**/data
+
+# ignore all proposals
+*.pdf
+
+# ignore personal_note
+personal_note.txt
