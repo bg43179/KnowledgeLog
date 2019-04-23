@@ -4,30 +4,63 @@ import requests
 from pyDatalog import pyDatalog
 
 
-# Pull data from Fueski
-def pull_from_fuseki(subject, predicate, obj):
-	# body = "SELECT ?{s} ?{p} ?{o} WHERE {{ ?{s} ?{p} ?{o} }} LIMIT 25".format(s=subject, p=predicate, o=obj)
-	body = "SELECT ?{s} {p} {o} WHERE {{ ?{s} {p} {o} }} LIMIT 25".format(s=subject, p=predicate, o=obj)
+def pull_from_fuseki(subject, predicate, obj, option):
+	"""
+		Method for pulling data form fuseki, support 4 different requests body
+
+	Args:
+	    subject: subject
+	    predicate: predicate
+	    obj: object 
+	    option: (0) all unknown (1) s known (2) p known (3) o known
+
+	Returns:
+	    return a json 
+
+	"""
+	if option == 0:
+		body = "SELECT ?{s} ?{p} ?{o} WHERE {{ ?{s} ?{p} ?{o} }} LIMIT 25".format(s=subject, p=predicate, o=obj)
+	elif option == 1:
+		body = "SELECT ?{p} ?{o} WHERE {{ {s} ?{p} ?{o} }} LIMIT 25".format(s=subject, p=predicate, o=obj)
+	elif option == 2:
+		body = "SELECT ?{s} ?{o} WHERE {{ ?{s} {p} ?{o} }} LIMIT 25".format(s=subject, p=predicate, o=obj)
+	elif option == 3:
+		body = "SELECT ?{s} ?{p} WHERE {{ ?{s} ?{p} {o} }} LIMIT 25".format(s=subject, p=predicate, o=obj)
+	
 	# print(body)
 	
 	response = requests.post('http://localhost:8080/dbpedia/',
        data={'query': body})
 	
+	# print(response.text)
 	# print the json in readable format
-	# print(json.dumps(response.json(), indent=1))
+	print(json.dumps(response.json(), indent=1))
 	return response.json()
 
-def cache(subject, predicate, obj):
-	# first create term for all the preidcate
-	predicate_map = {}
+def cache(response, sub, predicate, obj, predicate_map = {}):
+	"""
+		Method for pulling data form fuseki, support 4 different requests body
+
+	Args:
+	    subject: subject
+	    predicate: predicate
+	    obj: object 
+	    predicate: Use for tracking if the relation(predicate) talbe already exist
+
+	Returns:
+	    return a json 
+
+	"""
+	# first create term for all the predicate
+	
 	# add a instance in this format (+prdicate(subject, object))
 	for index, instance in enumerate(response['results']['bindings']):	
 		
-		current_pred = ""
+		current_pred = predicate
 		item = {}
 		
 		for key, value in instance.items():
-			# creat a new relation table if the preidcate is not exist
+			# creat a new relation table if the predicate is not exist
 			if key == predicate:
 				if key not in predicate_map:
 					pyDatalog.create_terms(value["value"].split(":")[1])
@@ -36,7 +69,7 @@ def cache(subject, predicate, obj):
 
 			if key == sub:
 				item[sub] = value["value"].split(":")[1]
-
+				
 			if key == obj:
 				item[obj] = value["value"].split(":")[1]
 		
@@ -48,16 +81,27 @@ def cache(subject, predicate, obj):
 	print(predicate_map)
 	# pass
 
-def rule_loader(): 
+def loader(): 
+	"""
+		Method for loading rule and load data into memory(cache)
+	"""
+
 	pyDatalog.load("influenced(X,Y) <= author(X,Y) & influencedBy(Y,Z)")
-	pass
+	rules = ["influenced" ,"author", "influencedBy"]
+	
+	predicate_map = {}
+	
+	for predicate in rules:
+		# Have to make it asyn
+		sub, obj= "subject", "object"
 
-def gen_datalog():
-	pass
+		if predicate not in predicate_map:
+			pyDatalog.create_terms(predicate)
+			predicate_map[predicate]= 1
 
-def user_input():
-	pass
-
+		response = pull_from_fuseki(sub, "<dbo:" + predicate +">", obj, 2)
+		cache(response, sub, predicate, obj, predicate_map)
+		
 
 if __name__ == "__main__":
 	
@@ -65,17 +109,17 @@ if __name__ == "__main__":
 	# D(x,y) <= R(X,Y) S(Y,Z);
 
 
+	# sub, pred, obj= "subject", "predicate", "object"
+
 	# sub = "subject"
-	# pred = "predicate"
-	# obj = "object"
-
-	sub = "subject"
-	pred = "<dbo:author>"
-	obj = "<db:George_Orwell>"
-	# Different 
-
-	response = pull_from_fuseki(sub, pred, obj);
-	cache(sub, pred, obj)
+	# pred = "<dbo:author>"
+	# obj = "<db:George_Orwell>"
+	
+	# rule_loader: load rule, generate a list of rule for pull from fueski
+	# rule_loader()
+	# response = pull_from_fuseki(sub, pred, obj, 0);
+	# cache(sub, pred, obj)
+	loader()
 
 	pyDatalog.create_terms("X", "Y", "Z")
 	# print(pyDatalog.ask("influenced" + '(X, Y)'))
@@ -83,5 +127,5 @@ if __name__ == "__main__":
 	
 	# rule_loader()
 	# print(pyDatalog.ask("influenced" + '(X, Y)'))
-	# print(pyDatalog.ask("influenced" + '("George_Orwell", X)'))
+	print(pyDatalog.ask("influenced" + '("George_Orwell", X)'))
 
