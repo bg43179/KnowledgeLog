@@ -1,8 +1,8 @@
 import sys
 import json
 import requests
+from tree import rule_selector
 from pyDatalog import pyDatalog
-
 
 def pull_from_fuseki(subject, predicate, obj, option):
 	"""
@@ -16,14 +16,13 @@ def pull_from_fuseki(subject, predicate, obj, option):
 
 	Returns:
 	    return a json 
-
 	"""
 	if option == 0:
 		body = "SELECT ?{s} ?{p} ?{o} WHERE {{ ?{s} ?{p} ?{o} }} LIMIT 25".format(s=subject, p=predicate, o=obj)
 	elif option == 1:
 		body = "SELECT ?{p} ?{o} WHERE {{ {s} ?{p} ?{o} }} LIMIT 25".format(s=subject, p=predicate, o=obj)
 	elif option == 2:
-		body = "SELECT ?{s} ?{o} WHERE {{ ?{s} {p} ?{o} }} LIMIT 25".format(s=subject, p=predicate, o=obj)
+		body = "SELECT ?{s} ?{o} WHERE {{ ?{s} {p} ?{o} }}".format(s=subject, p=predicate, o=obj)
 	elif option == 3:
 		body = "SELECT ?{s} ?{p} WHERE {{ ?{s} ?{p} {o} }} LIMIT 25".format(s=subject, p=predicate, o=obj)
 	
@@ -79,30 +78,27 @@ def loader():
 		Args:
 			rules:
 	"""
-
-	# TODO: Transformer, load rule and generate a list of realtion
-
-	pyDatalog.load("influenced(X,Y) <= author(X,Y) & influencedBy(Y,Z)")
-	rules = ["influenced" ,"author", "influencedBy"]
-	
+	# load rule and generate a list of relations
+	rules, relations = rule_selector("author")
 	predicate_map = {}
 	
-	for predicate in rules:
-		
+	for predicate in relations:
+
 		# TODO: Make it asyn?
 		sub, obj= "subject", "object"
 
 		if predicate not in predicate_map:
 			pyDatalog.create_terms(predicate)
-			predicate_map[predicate]= 1
+			predicate_map[predicate] = 1
 
 		response = pull_from_fuseki(sub, "<dbo:" + predicate +">", obj, 2)
 		cache(response, sub, predicate, obj, predicate_map)
 
 def interface():	
 	# TODO: interface for user to input Datalog
-
 	pass
+
+
 if __name__ == "__main__":
 	
 
@@ -114,5 +110,5 @@ if __name__ == "__main__":
 	pyDatalog.create_terms("X", "Y", "Z")
 	# print(pyDatalog.ask("influenced" + '(X, Y)'))
 
-	print(pyDatalog.ask("influenced" + '("George_Orwell", X)'))
+	print(pyDatalog.ask("author" + '(X, "George_Orwell")'))
 
