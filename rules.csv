@@ -4217,7 +4217,6 @@ rule,conf_pca
 "<dbo:child>(a, b) => <dbo:parent>(b, f) & <dbo:spouse>(a, f)",0.663793103
 "<dbo:employer>(a, b) => <dbo:keyPerson>(b, a)",0.663865546
 "<dbo:associatedAct>(a, b) => <dbo:influenced>(a, b)",0.666666667
-,0.666666667
 "<dbo:principal>(a, b) => <dbo:viceChancellor>(a, b)",0.666666667
 "<dbo:hasJunctionWith>(a, b) => <dbo:river>(b, a)",0.666666667
 "<dbo:startPoint>(a, b) => <dbo:hasJunctionWith>(b, a)",0.666666667
