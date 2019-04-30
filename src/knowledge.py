@@ -1,127 +1,20 @@
-import sys
-import json
-import requests
+import copy
 from tree import rule_selector
-from node import RuleNode, trim
+from node import RuleNode
 from pyDatalog import pyDatalog
 from request import pull_from_fuseki
 import loguru
 import collections
+import pprint
 
 
-def cache(response, sub, predicate, obj, predicate_map={}):
-    """
-        Method for pulling data form fuseki, support 4 different requests body
+def extract_tuple_from_fuseki_response(response):
+    for instance in response['results']['bindings']:
+        yield instance['subject']['value'], instance['object']['value']
 
-    Args:
-        response: json(dict) return from fuseki server
-        subject: subject
-        predicate: predicate
-        obj: object
-        predicate: Use for checking if the relation(predicate) talbe already exist
-    """
-    # first create terms for all the predicates
-    count = 0
-    # add an instance in this format (+prdicate(subject, object))
-    for index, instance in enumerate(response['results']['bindings']):
+import re
 
-        current_pred = predicate
-        item = {}
-
-        for key, value in instance.items():
-
-            # create a new relation table if the given predicate is not exist, can be removed in our case
-            # if key == predicate:
-            # 	if key not in predicate_map:
-            # 		pyDatalog.create_terms(value["value"].split(":")[1])
-            # 		predicate_map[value["value"].split(":")[1]]= 1
-            # 	current_pred = value["value"].split(":")[1]
-
-            if key == sub:
-                item[sub] = value["value"].split(":")[1]
-
-            if key == obj:
-                item[obj] = value["value"].split(":")[1]
-
-        # add the fact
-        pyDatalog.assert_fact(current_pred, item[sub], item[obj])
-        count += 1
-
-    loguru.logger.debug(count)
-
-
-def partition_cache(node, predicate_map, no_of_partition=5):
-    """
-        This method can load all the relation in one rule into memory.
-        Divide all the relation into 5 different partition, each represent different probability
-    """
-    table = []
-
-    for predicate in node.raw_set:
-
-        predicates = []
-
-        for num in range(no_of_partition):
-            name = trim(predicate, 1, "r") + "__prob__" + str(num + 1)
-            predicates.append(name)
-
-            if name not in predicate_map:
-                pyDatalog.create_terms(name)
-                predicate_map[name] = 1
-
-                if (num + 1) == no_of_partition:
-                    # if data haven't been loaded into DB, add it from fuseki
-                    sub, obj = "subject", "object"
-                    predicate_map[predicates[-1]] = 1
-
-                    # TODO: modify the string passed in
-                    loguru.logger.debug(predicate)
-                    response = pull_from_fuseki(sub, predicate, obj, 2)
-                    cache(response, sub, predicates[-1], obj, predicate_map)
-
-        table.append(predicates[:])
-
-
-# Join two relations(or one relation)
-# for i in range(len(table)):
-# for j in range(len(table[0])):
-
-
-# loguru.logger.debug(table)
-# loguru.logger.debug(predicate_map)
-
-
-def partition_loader():
-    """
-        Method for loading rule and load data into memory at once(cache)
-    """
-
-    rules, relations = rule_selector("<dbo:author>", 2)
-    eval_prob_query(rules)
-
-
-def loader():
-    """
-        Method for loading rule and load data into memory at once(cache)
-    """
-
-    # load rule and generate a list of relations
-    rules, relations = rule_selector("<dbo:author>", 1)
-    predicate_map = {}
-
-    for predicate in relations:
-        sub, obj = "subject", "object"
-
-        pred = trim(predicate, 1, "r")
-        loguru.logger.debug(pred)
-
-        if pred not in predicate_map:
-            pyDatalog.create_terms(pred)
-            predicate_map[pred] = 1
-
-        response = pull_from_fuseki(sub, predicate, obj, 2)
-        cache(response, sub, pred, obj, predicate_map)
-
+QUERY_PRED = re.compile(r'(.*)\(.*\)')
 
 def eval_datalog(data, rule):
     """
@@ -133,23 +26,37 @@ def eval_datalog(data, rule):
     assert isinstance(data, list)
     assert isinstance(rule, str)
 
-    def db2str(t1):
-        pass
+
+    def extract_query_predicate(rule):
+        return QUERY_PRED.match(rule).group(1)
+
+    def db2str(tuples):
+        return "\n".join(["+%s(%s,%s)" % (s, p, o) for (s, p, o) in tuples])
+
 
     def result2tuplestring(result):
-        return []
+        query_pred = extract_tuple_from_fuseki_response(rule)
+        for (s, o) in result:
+            yield (s, query_pred, o)
 
     pyDatalog.clear()
     pyDatalog.load(db2str(data) + '\n' + rule)
     pyDatalog.create_terms()
     result = pyDatalog.ask(rule)
 
-    return result2tuplestring(result)
+    return list(result2tuplestring(result))
 
 
+def eval_prob_query(rules, input_db):
+    """
+    Evaluate datalog programs given rules and EDB
+    :param rules:
+    :param input_db:
+    :return: A resulting output database
+    """
 
-def eval_prob_query(rules):
-    
+    predicates = copy.deepcopy(input_db)
+
     def get_next_rule(rules):
         """
         Retrieve rule in order considering dependency
@@ -181,10 +88,6 @@ def eval_prob_query(rules):
             idb_set = idb_set.difference(to_remove)
 
     tuple2conf = {}
-    predicates = {}
-
-    # TODO: relevant data into memory tuple2conf
-    # TODO:
 
     def get_next_part_from_single_table(pred_name, num_splits=5):
         tuples = predicates[pred_name]
@@ -210,24 +113,64 @@ def eval_prob_query(rules):
         # TODO: add to in-memory map for predicates and confidence
         pass
 
+    def initialize_tuple2conf():
+        for _, items in input_db:
+            for t in items:
+                tuple2conf[t] = 1
+
+    initialize_tuple2conf()
     for rule in get_next_rule(rules):
-        loguru.logger.info(rule)
-        left_predicate_name = None
-        right_predicate_name = None
-        for data, conf in get_next_part_pair(left_predicate_name, right_predicate_name):
-            resulting_tuples = eval_datalog(data, rule)
-            store_intermediate_results(resulting_tuples, conf * rule.conf)
+        # TODO: need to handle arity differently
+
+        if len(rule.right_set) == 2:
+            for data, conf in get_next_part_pair(rule.right_set[0], rule.right_set[1]):
+                resulting_tuples = eval_datalog(data, rule)
+                store_intermediate_results(resulting_tuples, conf * rule.conf)
+
+        if len(rule.right_set) == 1:
+            for t, avg in get_next_part_from_single_table(rule.right_set[0]):
+                store_intermediate_results(t, avg*rule.conf)
+
+        else:
+            assert False
+
+    return predicates, tuple2conf
+
+
+def main():
+    """
+        Method for loading rule and load data into memory at once(cache)
+    """
+
+    rules, relations = rule_selector("<dbo:author>", 2)
+
+    data = collections.defaultdict(set)
+
+    for predicate in relations:
+        sub, obj = "subject", "object"
+        resp = pull_from_fuseki(sub, predicate, obj, 2)
+        for s, o in extract_tuple_from_fuseki_response(resp):
+            data[predicate].add((s, predicate, o))
+
+    end_database, tuple_conf = eval_prob_query(rules, data)
+
+    return end_database, tuple_conf
 
 
 if __name__ == "__main__":
-
-    pyDatalog.load(
-        "+r('a','b')\na(N,M)<=r(M,N)"
-    )
-    print(pyDatalog.ask("a(X,Y)"))
-
-    pyDatalog.clear()
-    pyDatalog.load(
-        "+r('Paul',e)\na(N,M)<=r(M,N)"
-    )
-    print(pyDatalog.ask("a(AC,B)"))
+    # rules, relations = rule_selector("<dbo:author>", 1)
+    # print(relations)
+    # response = pull_from_fuseki('subject', '<dbo:creator>', 'object', 2)
+    # pprint.pprint(response['results']['bindings'][0], indent=4)
+    # pyDatalog.load(
+    #     "+r('a','b')\na(N,M)<=r(M,N)"
+    # )
+    # print(pyDatalog.ask("a(X,Y)"))
+    r = QUERY_PRED.match('abc(sdfsd)').group(1)
+    print(r)
+    #
+    # pyDatalog.clear()
+    # pyDatalog.load(
+    #     "+r('Paul',e)\na(N,M)<=r(M,N)"
+    # )
+    # print(pyDatalog.ask("a(AC,B)"))
