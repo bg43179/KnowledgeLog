@@ -15,8 +15,23 @@ class RuleNode():
         self.left = trim(rule[0], 1, "r")
         self.conf = conf
 
+
     def __repr__(self):
         return repr((self.rule, self.conf))
+
+    def __str__(self):
+        output = ""
+        flag = False
+        for i in range(len(self.rule)):
+            if self.rule[i] == '(':
+                flag = True
+            if flag:
+                output += self.rule[i].uppper()
+            else:
+                output += self.rule[i]
+            if self.rule[i] == ')':
+                flag = False
+        return output
 
 
 def trim(string, option=1, replace="f"):
