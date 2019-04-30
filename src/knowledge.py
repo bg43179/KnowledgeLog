@@ -4,14 +4,15 @@ from node import RuleNode
 from pyDatalog import pyDatalog
 from request import pull_from_fuseki
 import collections
+import re
+import functools
+import loguru
 
 
 def extract_tuple_from_fuseki_response(response):
     for instance in response['results']['bindings']:
         yield instance['subject']['value'], instance['object']['value']
 
-
-import re
 
 QUERY_PRED = re.compile(r'(.*)\(.*\)')
 
@@ -135,27 +136,41 @@ def eval_prob_query(rules, input_db):
 
 
 def main(query_relation="<dbo:author>", depth=2):
-
+    loguru.logger.info('Start loading rules....')
     rules, relations = rule_selector(query_relation, depth)
-    data = collections.defaultdict(set)
+    loguru.logger.info('Finish loading rules')
 
-    def initialize_input_data(rlns):
+    def retrieve_data_from_relations(rlns):
+        data = collections.defaultdict(set)
         for predicate in rlns:
             sub, obj = "subject", "object"
             resp = pull_from_fuseki(sub, predicate, obj, 2)
             for s, o in extract_tuple_from_fuseki_response(resp):
                 data[predicate].add((s, predicate, o))
+        return data
 
-    def extract_confidence():
+    def extract_confidence(db, conf):
         result = []
-        for t in end_database[query_relation]:
-            result.append((t, tuple_conf[t]))
+        for t in db[query_relation]:
+            result.append((t, conf[t]))
         return result
 
-    initialize_input_data(relations)
-    end_database, tuple_conf = eval_prob_query(rules, data)
+    loguru.logger.info('Start loading predicates given rules....')
+    predicates = retrieve_data_from_relations(relations)
+    loguru.logger.info('Finish loading predicates given rules')
 
-    tuple_with_conf = extract_confidence()
+    loguru.logger.info('Start evaluating....')
+
+    loguru.logger.info('Size of start database:',
+                       functools.reduce((lambda x, y: x + y), [len(v) for v in predicates.values()]))
+
+    end_database, tuple_conf = eval_prob_query(rules, predicates)
+    loguru.logger.info('Finish evaluating')
+
+    loguru.logger.info('Size of end database:',
+                       functools.reduce((lambda x, y: x + y), [len(v) for v in end_database.values()]))
+
+    tuple_with_conf = extract_confidence(end_database, tuple_conf)
 
     return sorted(tuple_with_conf, key=lambda x: x[1], reverse=True)
 
