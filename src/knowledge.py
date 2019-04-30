@@ -11,7 +11,7 @@ import loguru
 
 def extract_tuple_from_fuseki_response(response):
     for instance in response['results']['bindings']:
-        yield instance['subject']['value'], instance['object']['value']
+        yield instance['subject']['value'].split(':')[0], instance['object']['value'].split(':')[0]
 
 
 QUERY_PRED = re.compile(r'(.*)\(.*\)')
@@ -40,8 +40,12 @@ def eval_datalog(data, rule):
 
     pyDatalog.clear()
     pyDatalog.load(db2str(data) + '\n' + str(rule))
-    pyDatalog.create_terms()
-    result = pyDatalog.ask(str(rule))
+    # pyDatalog.create_terms()
+
+    loguru.logger.debug(db2str(data) + '\n' + str(rule))
+    loguru.logger.debug(rule.left+'(X, Y)')
+
+    result = pyDatalog.ask(rule.left+'(X, Y)')
 
     return list(result2tuplestring(result))
 
@@ -139,6 +143,7 @@ def eval_prob_query(rules, input_db):
 
     return predicates, tuple2conf
 
+PRED_NAME = re.compile('<dbo:(.*)>')
 
 def main(query_relation="<dbo:author>", depth=2):
     loguru.logger.info('Start loading rules....')
@@ -150,8 +155,10 @@ def main(query_relation="<dbo:author>", depth=2):
         for predicate in rlns:
             sub, obj = "subject", "object"
             resp = pull_from_fuseki(sub, predicate, obj, 2)
+
+            cleaned_pred = PRED_NAME.match(predicate).group(1)
             for s, o in extract_tuple_from_fuseki_response(resp):
-                data[predicate].add((s, predicate, o))
+                data[cleaned_pred].add((s, cleaned_pred, o))
         return data
 
     def extract_confidence(db, conf):
@@ -181,4 +188,8 @@ def main(query_relation="<dbo:author>", depth=2):
 
 
 if __name__ == "__main__":
+    # a = PRED_NAME.match('<dbo:chairperson>')
+    # print(a.group(1))
     main()
+    # pyDatalog.load("+r('a','b')\na(X,Y)<=r(Y,X)")
+    # print(pyDatalog.ask('e(X,Y)'))

@@ -26,12 +26,15 @@ class RuleNode():
             if self.rule[i] == '(':
                 flag = True
             if flag:
-                output += self.rule[i].uppper()
+                output += self.rule[i].upper()
             else:
                 output += self.rule[i]
             if self.rule[i] == ')':
                 flag = False
+        output = output.replace('<dbo:', '')
+        output = output.replace('>', '')
         return output
+
 
 
 def trim(string, option=1, replace="f"):
