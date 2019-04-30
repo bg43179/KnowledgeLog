@@ -124,36 +124,56 @@ def loader():
 
 
 def eval(data, rule):
-    pass
+    """
+    Evaluation using pyDatalog.
+    :param data: a list of tuple string
+    :param rule: a string of tuple
+    :return: a list of resulting tuple string
+    """
+    assert isinstance(data, list)
+    assert isinstance(rule, str)
+
+    def db2str(t1):
+        pass
+
+    def result2tuplestring(result):
+        pass
+
+    pyDatalog.clear()
+    pyDatalog.load(db2str(data) + '\n' + rule)
+    pyDatalog.create_terms()
+    result = pyDatalog.ask(rule)
+
+    return result2tuplestring(result)
 
 
 tuple2conf = {}
 predicates = {}
 
 
-def get_next_pair(pred1_name, pred2_name):
+def get_next_part_from_single_table(pred_name, num_splits=5):
+    tuples = predicates[pred_name]
+    sorted_tuples = sorted([(t, tuple2conf[t]) for t in tuples], key=lambda x: x[1])
 
-    def get_next_part_from_single_table(pred_name, num_splits=5):
+    split_size = int(len(sorted_tuples) / num_splits)
+    for x in range(0, len(sorted_tuples), split_size):
+        yield list(map(lambda y: y[0], sorted_tuples[x:x + split_size])), \
+              float(sum(map(lambda y: y[1], sorted_tuples[x:x + split_size])) / len(sorted_tuples[x:x + split_size]))
 
-        tuples = predicates[pred_name]
-        sorted_tuples = sorted([(t, tuple2conf[t]) for t in tuples], key=lambda x: x[1])
 
-        split_size = int(len(sorted_tuples)/num_splits)
-        for x in range(0, len(sorted_tuples), split_size):
-            yield list(map(lambda y: y[0], sorted_tuples[x:x + split_size])), \
-                  float(sum(map(lambda y: y[1], sorted_tuples[x:x + split_size]))/len(sorted_tuples[x:x + split_size]))
-
+def get_next_part_pair(pred1_name, pred2_name):
     for t1, avg1 in get_next_part_from_single_table(pred1_name):
         for t2, avg2 in get_next_part_from_single_table(pred2_name):
-            pass
-
-
-    pass
+            yield t1 + t2, avg1 * avg2
 
 
 def knowledge(rules):
-
     def get_next_rule(rules):
+        """
+        Retrieve rule in order considering dependency
+        :param rules: A list of rule node object
+        :return:
+        """
         rule_map = {}
         idb_set = set()
         head_counter = collections.defaultdict(lambda: 0)
@@ -178,26 +198,21 @@ def knowledge(rules):
 
             idb_set = idb_set.difference(to_remove)
 
+    def add_tuples_predicates(tuples, conf):
+        # TODO: add to in-memory map for predicates and confidence
+        pass
+
     for rule in get_next_rule(rules):
         loguru.logger.info(rule)
+        left_predicate_name = None
+        right_predicate_name = None
+        for data, conf in get_next_part_pair(left_predicate_name, right_predicate_name):
+            resulting_tuples = eval(data, rule)
 
 
 if __name__ == "__main__":
-    # sub, pred, obj= "subject", "predicate", "object"
-    # response = pull_from_fuseki(sub, pred, obj, 0);
-    # cache(sub, pred, obj)
-
-    # loader()
-    # partition_loader()
-    pyDatalog.create_terms("X,Y")
-    # loguru.logger.debug(pyDatalog.ask("influenced" + '(X, Y)'))
-
-    # loguru.logger.debug(pyDatalog.ask('author' + '(X, "George_Orwell")'))
     pyDatalog.load(
         "+r('a','b')\na(N,M)<=r(M,N)"
     )
-    # print(pyDatalog.ask("a(X,Y)"))
-
     pyDatalog.clear()
-
     print(pyDatalog.ask("a(X,Y)"))
