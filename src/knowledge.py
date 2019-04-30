@@ -3,9 +3,7 @@ from tree import rule_selector
 from node import RuleNode
 from pyDatalog import pyDatalog
 from request import pull_from_fuseki
-import loguru
 import collections
-import pprint
 
 
 def extract_tuple_from_fuseki_response(response):
@@ -77,7 +75,6 @@ def eval_prob_query(rules, input_db):
             to_remove = set()
             for key in list(rule_map.keys()):
                 node = rule_map[key]
-                # loguru.logger.debug(node.right_set)
                 if not idb_set.intersection(node.right_set):
                     yield node
                     head_counter[node.left] -= 1
@@ -92,8 +89,8 @@ def eval_prob_query(rules, input_db):
     def get_next_part_from_single_table(pred_name, num_splits=5):
         tuples = predicates[pred_name]
         sorted_tuples = sorted([(t, tuple2conf[t]) for t in tuples], key=lambda x: x[1])
-
         split_size = int(len(sorted_tuples) / num_splits)
+
         for x in range(0, len(sorted_tuples), split_size):
             yield list(map(lambda y: y[0], sorted_tuples[x:x + split_size])), \
                   float(
@@ -137,20 +134,30 @@ def eval_prob_query(rules, input_db):
     return predicates, tuple2conf
 
 
-def main():
-    rules, relations = rule_selector("<dbo:author>", 2)
+def main(query_relation="<dbo:author>", depth=2):
 
+    rules, relations = rule_selector(query_relation, depth)
     data = collections.defaultdict(set)
 
-    for predicate in relations:
-        sub, obj = "subject", "object"
-        resp = pull_from_fuseki(sub, predicate, obj, 2)
-        for s, o in extract_tuple_from_fuseki_response(resp):
-            data[predicate].add((s, predicate, o))
+    def initialize_input_data(rlns):
+        for predicate in rlns:
+            sub, obj = "subject", "object"
+            resp = pull_from_fuseki(sub, predicate, obj, 2)
+            for s, o in extract_tuple_from_fuseki_response(resp):
+                data[predicate].add((s, predicate, o))
 
+    def extract_confidence():
+        result = []
+        for t in end_database[query_relation]:
+            result.append((t, tuple_conf[t]))
+        return result
+
+    initialize_input_data(relations)
     end_database, tuple_conf = eval_prob_query(rules, data)
 
-    return end_database, tuple_conf
+    tuple_with_conf = extract_confidence()
+
+    return sorted(tuple_with_conf, key=lambda x: x[1], reverse=True)
 
 
 if __name__ == "__main__":
