@@ -41,7 +41,7 @@ def eval_datalog(data, rule):
     pyDatalog.clear()
     pyDatalog.load(db2str(data) + '\n' + str(rule))
     pyDatalog.create_terms()
-    result = pyDatalog.ask(rule)
+    result = pyDatalog.ask(str(rule))
 
     return list(result2tuplestring(result))
 
@@ -88,9 +88,14 @@ def eval_prob_query(rules, input_db):
     tuple2conf = {}
 
     def get_next_part_from_single_table(pred_name, num_splits=5):
+        loguru.logger.debug('Trying to retrieve data for relation: %s' % pred_name)
         tuples = predicates[pred_name]
         sorted_tuples = sorted([(t, tuple2conf[t]) for t in tuples], key=lambda x: x[1])
+
         split_size = int(len(sorted_tuples) / num_splits)
+        loguru.logger.debug('tuple_length: %d, num_splits: %d' % (len(sorted_tuples), num_splits))
+        if split_size == 0:
+            split_size = len(sorted_tuples)
 
         for x in range(0, len(sorted_tuples), split_size):
             yield list(map(lambda y: y[0], sorted_tuples[x:x + split_size])), \
@@ -113,7 +118,7 @@ def eval_prob_query(rules, input_db):
             tuple2conf[(s, p, o)] = conf
 
     def initialize_tuple2conf():
-        for _, items in input_db:
+        for _, items in input_db.items():
             for t in items:
                 tuple2conf[t] = 1
 
@@ -121,7 +126,7 @@ def eval_prob_query(rules, input_db):
     for rule in get_next_rule(rules):
 
         if len(rule.right_set) == 2:
-            for data, conf in get_next_part_pair(rule.right_set[0], rule.right_set[1]):
+            for data, conf in get_next_part_pair(list(rule.right_set)[0], list(rule.right_set)[1]):
                 resulting_tuples = eval_datalog(data, rule)
                 store_intermediate_results(resulting_tuples, conf * rule.conf)
 
@@ -161,13 +166,13 @@ def main(query_relation="<dbo:author>", depth=2):
 
     loguru.logger.info('Start evaluating....')
 
-    loguru.logger.info('Size of start database:',
+    loguru.logger.info('Size of start database: %d' %
                        functools.reduce((lambda x, y: x + y), [len(v) for v in predicates.values()]))
 
     end_database, tuple_conf = eval_prob_query(rules, predicates)
     loguru.logger.info('Finish evaluating')
 
-    loguru.logger.info('Size of end database:',
+    loguru.logger.info('Size of end database: %d' %
                        functools.reduce((lambda x, y: x + y), [len(v) for v in end_database.values()]))
 
     tuple_with_conf = extract_confidence(end_database, tuple_conf)
