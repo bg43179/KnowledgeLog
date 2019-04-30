@@ -122,9 +122,9 @@ def loader():
         response = pull_from_fuseki(sub, predicate, obj, 2)
         cache(response, sub, pred, obj, predicate_map)
 
+
 def eval(data, rule):
     pass
-
 
 
 def knowledge(rules):
@@ -171,11 +171,15 @@ if __name__ == "__main__":
 
     # loader()
     # partition_loader()
-    pyDatalog.create_terms("r,x,y")
+    pyDatalog.create_terms("X,Y")
     # loguru.logger.debug(pyDatalog.ask("influenced" + '(X, Y)'))
 
     # loguru.logger.debug(pyDatalog.ask('author' + '(X, "George_Orwell")'))
     pyDatalog.load(
-        "+ r('a','b')"
+        "+r('a','b')\na(N,M)<=r(M,N)"
     )
-    print(pyDatalog.ask("r(x,y)"))
+    # print(pyDatalog.ask("a(X,Y)"))
+
+    pyDatalog.clear()
+
+    print(pyDatalog.ask("a(X,Y)"))
