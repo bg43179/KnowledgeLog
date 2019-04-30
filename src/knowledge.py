@@ -127,35 +127,53 @@ def eval(data, rule):
     pass
 
 
+tuple2conf = {}
+predicates = {}
+
+
+def get_next_pair(pred1_name, pred2_name):
+
+    def get_next_part_from_single_table(pred_name, num_splits=5):
+
+        tuples = predicates[pred_name]
+        sorted_tuples = sorted([(t, tuple2conf[t]) for t in tuples], key=lambda x: x[1])
+
+        split_size = int(len(sorted_tuples)/num_splits)
+        for x in range(0, len(sorted_tuples), split_size):
+            yield list(map(lambda y: y[0], sorted_tuples[x:x + split_size])), \
+                  float(sum(map(lambda y: y[1], sorted_tuples[x:x + split_size]))/len(sorted_tuples[x:x + split_size]))
+
+    for t1, avg1 in get_next_part_from_single_table(pred1_name):
+        for t2, avg2 in get_next_part_from_single_table(pred2_name):
+            pass
+
+
+    pass
+
+
 def knowledge(rules):
+
     def get_next_rule(rules):
         rule_map = {}
         idb_set = set()
         head_counter = collections.defaultdict(lambda: 0)
 
         for index, rule in enumerate(rules):
-            # TODO: fix input
-
             node = RuleNode(rule[0], rule[1])
             idb_set.add(node.left)
             head_counter[node.left] += 1
-
             rule_map[str(index)] = node
 
         while rule_map:
             to_remove = set()
-
             for key in list(rule_map.keys()):
                 node = rule_map[key]
                 # loguru.logger.debug(node.right_set)
                 if not idb_set.intersection(node.right_set):
                     yield node
-
                     head_counter[node.left] -= 1
-
                     if head_counter[node.left] == 0:
                         to_remove.add(node.left)
-
                     del rule_map[key]
 
             idb_set = idb_set.difference(to_remove)
