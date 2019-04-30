@@ -97,7 +97,7 @@ def partition_loader():
     """
 
     rules, relations = rule_selector("<dbo:author>", 2)
-    knowledge(rules)
+    eval_prob_query(rules)
 
 
 def loader():
@@ -123,7 +123,7 @@ def loader():
         cache(response, sub, pred, obj, predicate_map)
 
 
-def eval(data, rule):
+def eval_datalog(data, rule):
     """
     Evaluation using pyDatalog.
     :param data: a list of tuple string
@@ -137,7 +137,7 @@ def eval(data, rule):
         pass
 
     def result2tuplestring(result):
-        pass
+        return []
 
     pyDatalog.clear()
     pyDatalog.load(db2str(data) + '\n' + rule)
@@ -147,27 +147,9 @@ def eval(data, rule):
     return result2tuplestring(result)
 
 
-tuple2conf = {}
-predicates = {}
 
-
-def get_next_part_from_single_table(pred_name, num_splits=5):
-    tuples = predicates[pred_name]
-    sorted_tuples = sorted([(t, tuple2conf[t]) for t in tuples], key=lambda x: x[1])
-
-    split_size = int(len(sorted_tuples) / num_splits)
-    for x in range(0, len(sorted_tuples), split_size):
-        yield list(map(lambda y: y[0], sorted_tuples[x:x + split_size])), \
-              float(sum(map(lambda y: y[1], sorted_tuples[x:x + split_size])) / len(sorted_tuples[x:x + split_size]))
-
-
-def get_next_part_pair(pred1_name, pred2_name):
-    for t1, avg1 in get_next_part_from_single_table(pred1_name):
-        for t2, avg2 in get_next_part_from_single_table(pred2_name):
-            yield t1 + t2, avg1 * avg2
-
-
-def knowledge(rules):
+def eval_prob_query(rules):
+    
     def get_next_rule(rules):
         """
         Retrieve rule in order considering dependency
@@ -198,7 +180,33 @@ def knowledge(rules):
 
             idb_set = idb_set.difference(to_remove)
 
-    def add_tuples_predicates(tuples, conf):
+    tuple2conf = {}
+    predicates = {}
+
+    # TODO: relevant data into memory tuple2conf
+    # TODO:
+
+    def get_next_part_from_single_table(pred_name, num_splits=5):
+        tuples = predicates[pred_name]
+        sorted_tuples = sorted([(t, tuple2conf[t]) for t in tuples], key=lambda x: x[1])
+
+        split_size = int(len(sorted_tuples) / num_splits)
+        for x in range(0, len(sorted_tuples), split_size):
+            yield list(map(lambda y: y[0], sorted_tuples[x:x + split_size])), \
+                  float(
+                      sum(map(lambda y: y[1], sorted_tuples[x:x + split_size])) / len(sorted_tuples[x:x + split_size]))
+
+    def get_next_part_pair(pred1_name, pred2_name):
+        for t1, avg1 in get_next_part_from_single_table(pred1_name):
+            for t2, avg2 in get_next_part_from_single_table(pred2_name):
+                yield t1 + t2, avg1 * avg2
+
+    def store_intermediate_results(tuples, conf):
+        """
+        :param tuples: list of tuple string
+        :param conf: confidence
+        :return:
+        """
         # TODO: add to in-memory map for predicates and confidence
         pass
 
@@ -207,12 +215,19 @@ def knowledge(rules):
         left_predicate_name = None
         right_predicate_name = None
         for data, conf in get_next_part_pair(left_predicate_name, right_predicate_name):
-            resulting_tuples = eval(data, rule)
+            resulting_tuples = eval_datalog(data, rule)
+            store_intermediate_results(resulting_tuples, conf * rule.conf)
 
 
 if __name__ == "__main__":
+
     pyDatalog.load(
         "+r('a','b')\na(N,M)<=r(M,N)"
     )
-    pyDatalog.clear()
     print(pyDatalog.ask("a(X,Y)"))
+
+    pyDatalog.clear()
+    pyDatalog.load(
+        "+r('Paul',e)\na(N,M)<=r(M,N)"
+    )
+    print(pyDatalog.ask("a(AC,B)"))
