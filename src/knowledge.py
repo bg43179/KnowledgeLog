@@ -7,6 +7,13 @@ import collections
 import re
 import functools
 import loguru
+import sys
+import tqdm
+import pprint
+import os
+
+loguru.logger.remove()
+loguru.logger.add(sys.stderr, level='INFO')
 
 
 def extract_tuple_from_fuseki_response(response):
@@ -39,17 +46,18 @@ def eval_datalog(data, rule):
             yield (s, query_pred, o)
 
     pyDatalog.clear()
+    # loguru.logger.debug('Size of loaded data: %d' % len(data))
     for (s, p, o) in data:
         pyDatalog.assert_fact(p, s, o)
     pyDatalog.load(str(rule))
-    # pyDatalog.create_terms()
 
-    # loguru.logger.debug(db2str(data) + '\n' + str(rule))
-    loguru.logger.debug(rule.left+'(X, Y)')
+    result = pyDatalog.ask(rule.left + '(X, Y)')
 
-    result = pyDatalog.ask(rule.left+'(X, Y)')
+    if not result:
+        loguru.logger.debug("Empty evaluation")
+        return []
 
-    return list(result2tuplestring(result))
+    return list(result2tuplestring(result.answers))
 
 
 def eval_prob_query(rules, input_db):
@@ -94,12 +102,11 @@ def eval_prob_query(rules, input_db):
     tuple2conf = {}
 
     def get_next_part_from_single_table(pred_name, num_splits=5):
-        loguru.logger.debug('Trying to retrieve data for relation: %s' % pred_name)
+
         tuples = predicates[pred_name]
         sorted_tuples = sorted([(t, tuple2conf[t]) for t in tuples], key=lambda x: x[1])
 
         split_size = int(len(sorted_tuples) / num_splits)
-        loguru.logger.debug('tuple_length: %d, num_splits: %d' % (len(sorted_tuples), num_splits))
         if split_size == 0:
             split_size = len(sorted_tuples)
 
@@ -129,23 +136,28 @@ def eval_prob_query(rules, input_db):
                 tuple2conf[t] = 1
 
     initialize_tuple2conf()
-    for rule in get_next_rule(rules):
-
+    loguru.logger.info('Start rule evaluation')
+    for rule in tqdm.tqdm(list(get_next_rule(rules))):
+        loguru.logger.debug('Start evaluating rule: %s' % rule.rule)
         if len(rule.right_set) == 2:
             for data, conf in get_next_part_pair(list(rule.right_set)[0], list(rule.right_set)[1]):
                 resulting_tuples = eval_datalog(data, rule)
                 store_intermediate_results(resulting_tuples, conf * rule.conf)
 
-        if len(rule.right_set) == 1:
-            for t, avg in get_next_part_from_single_table(rule.right_set[0]):
+        elif len(rule.right_set) == 1:
+            for t, avg in get_next_part_from_single_table(list(rule.right_set)[0]):
                 store_intermediate_results(t, avg * rule.conf)
 
         else:
+            print(len(rule.right_set))
             assert False
+        loguru.logger.debug('End evaluating rule: %s' % rule.rule)
 
     return predicates, tuple2conf
 
+
 PRED_NAME = re.compile('<dbo:(.*)>')
+
 
 def main(query_relation="<dbo:author>", depth=2):
     loguru.logger.info('Start loading rules....')
@@ -165,7 +177,8 @@ def main(query_relation="<dbo:author>", depth=2):
 
     def extract_confidence(db, conf):
         result = []
-        for t in db[query_relation]:
+        cleaned_pred = PRED_NAME.match(query_relation).group(1)
+        for t in db[cleaned_pred]:
             result.append((t, conf[t]))
         return result
 
@@ -186,7 +199,9 @@ def main(query_relation="<dbo:author>", depth=2):
 
     tuple_with_conf = extract_confidence(end_database, tuple_conf)
 
-    return sorted(tuple_with_conf, key=lambda x: x[1], reverse=True)
+    pprint.pprint(sorted(tuple_with_conf, key=lambda x: x[1], reverse=True))
+
+    # return sorted(tuple_with_conf, key=lambda x: x[1], reverse=True)
 
 
 if __name__ == "__main__":
