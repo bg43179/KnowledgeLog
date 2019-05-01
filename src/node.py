@@ -1,17 +1,24 @@
+import re
+
 class RuleNode():
     def __init__(self, rule, conf=None):
+        # Give rule: "<dbo:influenced(X,Y)> <= <dbo:influencedBy(X,Y)> & <dbo:author(X,Y)>"
         self.rule = rule
+        
         rule = rule.split("<=")
-
         right = rule[1].split("&")
 
+        # right_set:{"influencedBy", "author"}
         self.right_set = set([trim(right[0], 1, "r")]) if len(right) == 1 else set(
             [trim(right[0], 1, "r"), trim(right[1], 1, "r")])
-        self.raw_set = set([trim(right[0], 2, ), trim(right[1], 2, )]) if len(right) == 2 else set([trim(right[0], 2)])
-        # self.raw_right_set = set([trim(right[0], 2,), trim(right[1], 2,)]) if len(right) == 2 else set([trim(right[0], 2)])
-        # self.raw_all_set = set([rule[0], right[0], right[1]]) if len(right) == 2 else set([rule[0], right[0]])
-
+        
+        # right_set:{"<dbo:influencedBy>", "<dbo:author>""}
+        self.raw_set = set([trim(right[0], 2,), trim(right[1], 2,)]) if len(right) == 2 else set([trim(right[0], 2)])
+        
+        # right: "<dbo:influencedBy(X,Y)> & <dbo:author(X,Y)>"
         self.right = rule[1].strip()
+
+        # left: "influenced"
         self.left = trim(rule[0], 1, "r")
         self.conf = conf
 
