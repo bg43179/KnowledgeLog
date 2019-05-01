@@ -11,7 +11,7 @@ import loguru
 
 def extract_tuple_from_fuseki_response(response):
     for instance in response['results']['bindings']:
-        yield instance['subject']['value'].split(':')[0], instance['object']['value'].split(':')[0]
+        yield instance['subject']['value'].split(':')[1], instance['object']['value'].split(':')[1]
 
 
 QUERY_PRED = re.compile(r'(.*)\(.*\)')
@@ -30,8 +30,8 @@ def eval_datalog(data, rule):
     def extract_query_predicate(rule):
         return QUERY_PRED.match(rule).group(1)
 
-    def db2str(tuples):
-        return "\n".join(["+%s(%s,%s)" % (s, p, o) for (s, p, o) in tuples])
+    # def db2str(tuples):
+    #     return "\n".join(["+%s(%s,%s)" % (p, s, o) for (s, p, o) in tuples])
 
     def result2tuplestring(result):
         query_pred = extract_query_predicate(rule.rule)
@@ -39,10 +39,12 @@ def eval_datalog(data, rule):
             yield (s, query_pred, o)
 
     pyDatalog.clear()
-    pyDatalog.load(db2str(data) + '\n' + str(rule))
+    for (s, p, o) in data:
+        pyDatalog.assert_fact(p, s, o)
+    pyDatalog.load(str(rule))
     # pyDatalog.create_terms()
 
-    loguru.logger.debug(db2str(data) + '\n' + str(rule))
+    # loguru.logger.debug(db2str(data) + '\n' + str(rule))
     loguru.logger.debug(rule.left+'(X, Y)')
 
     result = pyDatalog.ask(rule.left+'(X, Y)')
@@ -191,5 +193,6 @@ if __name__ == "__main__":
     # a = PRED_NAME.match('<dbo:chairperson>')
     # print(a.group(1))
     main()
-    # pyDatalog.load("+r('a','b')\na(X,Y)<=r(Y,X)")
-    # print(pyDatalog.ask('e(X,Y)'))
+    # pyDatalog.assert_fact('deathPlace', 'HarryStorer,___Jr.', 'Derby')
+    # pyDatalog.load("a(X,Y)<=deathPlace(Y,X)")
+    # print(pyDatalog.ask('a(X,Y)'))
