@@ -1,4 +1,8 @@
 import copy
+import itertools
+
+import numpy
+
 from tree import rule_selector
 from node import RuleNode
 from pyDatalog import pyDatalog
@@ -10,7 +14,8 @@ import loguru
 import sys
 import tqdm
 import pprint
-import os
+import config
+import tablat
 
 loguru.logger.remove()
 loguru.logger.add(sys.stderr, level='INFO')
@@ -35,15 +40,17 @@ def eval_datalog(data, rule):
     assert isinstance(rule, RuleNode)
 
     def extract_query_predicate(rule):
+        # print(rule)
         return QUERY_PRED.match(rule).group(1)
 
     # def db2str(tuples):
     #     return "\n".join(["+%s(%s,%s)" % (p, s, o) for (s, p, o) in tuples])
 
     def result2tuplestring(result):
-        query_pred = extract_query_predicate(rule.rule)
+        # print(rule)
+        # query_pred = extract_query_predicate(rule.left)
         for (s, o) in result:
-            yield (s, query_pred, o)
+            yield (s, rule.left, o)
 
     pyDatalog.clear()
     # loguru.logger.debug('Size of loaded data: %d' % len(data))
@@ -101,7 +108,7 @@ def eval_prob_query(rules, input_db):
 
     tuple2conf = {}
 
-    def get_next_part_from_single_table(pred_name, num_splits=5):
+    def get_next_part_from_single_table(pred_name, num_splits=config.num_split):
 
         tuples = predicates[pred_name]
         sorted_tuples = sorted([(t, tuple2conf[t]) for t in tuples], key=lambda x: x[1])
@@ -127,6 +134,7 @@ def eval_prob_query(rules, input_db):
         :return:
         """
         for (s, p, o) in tuples:
+            assert '<=' not in p
             predicates[p].add((s, p, o))
             tuple2conf[(s, p, o)] = conf
 
@@ -159,7 +167,7 @@ def eval_prob_query(rules, input_db):
 PRED_NAME = re.compile('<dbo:(.*)>')
 
 
-def main(query_relation="<dbo:author>", depth=2):
+def main(query_relation=config.query_relation, depth=config.rule_depth):
     loguru.logger.info('Start loading rules....')
     rules, relations = rule_selector(query_relation, depth)
     loguru.logger.info('Finish loading rules')
@@ -168,7 +176,7 @@ def main(query_relation="<dbo:author>", depth=2):
         data = collections.defaultdict(set)
         for predicate in rlns:
             sub, obj = "subject", "object"
-            resp = pull_from_fuseki(sub, predicate, obj, 2)
+            resp = pull_from_fuseki(sub, predicate, obj, depth)
 
             cleaned_pred = PRED_NAME.match(predicate).group(1)
             for s, o in extract_tuple_from_fuseki_response(resp):
@@ -199,15 +207,16 @@ def main(query_relation="<dbo:author>", depth=2):
 
     tuple_with_conf = extract_confidence(end_database, tuple_conf)
 
-    pprint.pprint(sorted(tuple_with_conf, key=lambda x: x[1], reverse=True))
+    loguru.logger.info(
+        'Start relation size: %d' % len(extract_confidence(predicates, collections.defaultdict(lambda: 0))))
+    loguru.logger.info('End relation size: %d' % len(tuple_with_conf))
+
+    tablat.Table(list(itertools.chain(*[[k, len(predicates[k]), len(v)] for k, v in end_database.items()])),
+                 ['Predicate', 'Before', 'After']).print_table()
+    # pprint.pprint(sorted(tuple_with_conf, key=lambda x: x[1], reverse=True))
 
     # return sorted(tuple_with_conf, key=lambda x: x[1], reverse=True)
 
 
 if __name__ == "__main__":
-    # a = PRED_NAME.match('<dbo:chairperson>')
-    # print(a.group(1))
     main()
-    # pyDatalog.assert_fact('deathPlace', 'HarryStorer,___Jr.', 'Derby')
-    # pyDatalog.load("a(X,Y)<=deathPlace(Y,X)")
-    # print(pyDatalog.ask('a(X,Y)'))
