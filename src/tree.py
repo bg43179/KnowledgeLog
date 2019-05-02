@@ -1,5 +1,6 @@
 import csv
 from collections import deque
+from node import RuleNode
 
 class TreeNode():
 	def __init__(self, value):
@@ -35,7 +36,7 @@ def get_node(value, tree_map):
 		node = tree_map[value]
 	return node
 
-def build_tree(filename = './test.csv'):
+def build_tree(filename = '../rules.csv'):
 	"""
 		Build a tree for level-order traversal
 
@@ -50,6 +51,7 @@ def build_tree(filename = './test.csv'):
 
 	# open file
 	with open(filename, 'r') as fp: 
+		next(fp)
 		reader = csv.reader(fp)
 		
 		for row in reader:			
@@ -95,7 +97,7 @@ def extractor(row):
 
 	return [first, second, outcome, rule, confidence]
 
-def rule_selector(target, step=5):
+def rule_selector(target, step=2):
 	"""
 		Transform the input csv to desired format
 	
@@ -123,7 +125,7 @@ def rule_selector(target, step=5):
 		for i in range(size):
 			curr = queue.popleft()
 			
-			rules.extend(curr.get_rule())
+			rules.extend(remove_cycle(curr.get_rule(), explored))
 
 			# Add non visited child 
 			for child in curr.get_children():
@@ -137,6 +139,17 @@ def rule_selector(target, step=5):
 
 	return rules, explored
 
+def remove_cycle(rules, explored):
+	rules = list(map(lambda x: RuleNode(x[0], x[1]), rules))
+	res = []
+
+	for node in rules:
+		# if empty, not explored yet!
+		if node.raw_set.intersection(explored):
+			continue
+		res.append((node.rule, node.conf))
+
+	return res
 
 if __name__ == "__main__":
 	
@@ -153,5 +166,7 @@ if __name__ == "__main__":
 	# print(", ".join(i.value for i in tree_map["author"].get_children()))
 		
 
-	print(rule_selector("influenced", 1)[0])
-	print(rule_selector("influenced", 1)[1])
+	# print(rule_selector("influenced", 1)[0])
+	for i in rule_selector("<dbo:author>", 3)[0]:
+		print(i)
+	# print(rule_selector("<dbo:author>", 2)[0])

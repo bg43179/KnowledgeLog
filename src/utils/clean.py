@@ -1,6 +1,6 @@
-op = open('../data/dbpedia.3.8.nt', "w")
+op = open('dbpedia.3.8.nt', "w")
 
-with open('../data/dbpedia.3.8.tsv') as fp: 
+with open('dbpedia.3.8.tsv') as fp:
 	for line in fp:
 		line = line.replace("	", "")
 		line = line.replace("\n", ".")
