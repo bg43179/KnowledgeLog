@@ -64,6 +64,9 @@ def eval_datalog(data, rule):
         loguru.logger.debug("Empty evaluation")
         return []
 
+    # if rule.left == config.query_relation_name:
+    #     pyDatalog.ask(config.query_relation_name + "(" + config.subject + ", Y)")
+
     return list(result2tuplestring(result.answers))
 
 
@@ -88,6 +91,7 @@ def eval_prob_query(rules, input_db):
         head_counter = collections.defaultdict(lambda: 0)
 
         for index, rule in enumerate(rules):
+            print(rule)
             node = RuleNode(rule[0], rule[1])
             idb_set.add(node.left)
             head_counter[node.left] += 1
@@ -164,7 +168,7 @@ def eval_prob_query(rules, input_db):
     return predicates, tuple2conf
 
 
-PRED_NAME = re.compile('<dbo:(.*)>')
+PRED_NAME = re.compile('<.*:(.*)>')
 
 
 def main(query_relation=config.query_relation, depth=config.rule_depth):
@@ -176,8 +180,14 @@ def main(query_relation=config.query_relation, depth=config.rule_depth):
         data = collections.defaultdict(set)
         for predicate in rlns:
             sub, obj = "subject", "object"
-            resp = pull_from_fuseki(sub, predicate, obj, depth)
+            resp = pull_from_fuseki(sub, predicate, obj, config.request_type)
 
+            if PRED_NAME.match(predicate) == None:
+                print(predicate)
+             
+            predicate = predicate.replace('/', '')
+            predicate = predicate.replace('.', '')
+            
             cleaned_pred = PRED_NAME.match(predicate).group(1)
             for s, o in extract_tuple_from_fuseki_response(resp):
                 data[cleaned_pred].add((s, cleaned_pred, o))
@@ -211,9 +221,11 @@ def main(query_relation=config.query_relation, depth=config.rule_depth):
         'Start relation size: %d' % len(extract_confidence(predicates, collections.defaultdict(lambda: 0))))
     loguru.logger.info('End relation size: %d' % len(tuple_with_conf))
 
-    tablat.Table(list(itertools.chain(*[[k, len(predicates[k]), len(v)] for k, v in end_database.items()])),
+    tablat.Table(list(itertools.chain(*[[k, len(predicates[k]), len(v)] if len(predicates[k]) < len(v) else [] for k, v in end_database.items()])),
                  ['Predicate', 'Before', 'After']).print_table()
     # pprint.pprint(sorted(tuple_with_conf, key=lambda x: x[1], reverse=True))
+
+    # print(end_database[config.query_relation_name])
 
     # return sorted(tuple_with_conf, key=lambda x: x[1], reverse=True)
 

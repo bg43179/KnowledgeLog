@@ -12,7 +12,7 @@ class RuleNode():
         self.right_set = set([trim(right[0], 1, "r")]) if len(right) == 1 else set(
             [trim(right[0], 1, "r"), trim(right[1], 1, "r")])
         
-        # right_set:{"<dbo:influencedBy>", "<dbo:author>""}
+        # raw_set:{"<dbo:influencedBy>", "<dbo:author>""}
         self.raw_set = set([trim(right[0], 2,), trim(right[1], 2,)]) if len(right) == 2 else set([trim(right[0], 2)])
         
         # right: "<dbo:influencedBy(X,Y)> & <dbo:author(X,Y)>"
@@ -20,6 +20,7 @@ class RuleNode():
 
         # left: "influenced"
         self.left = trim(rule[0], 1, "r")
+        self.raw_left = trim(rule[0], 2,)
         self.conf = conf
 
 
@@ -38,10 +39,15 @@ class RuleNode():
                 output += self.rule[i]
             if self.rule[i] == ')':
                 flag = False
-        output = output.replace('<dbo:', '')
-        output = output.replace('>', '')
-        return output
 
+
+        output = output.replace('.', '')
+        output = output.replace('/', '')
+        output = output.replace('<dbo:', '')
+        output = output.replace('<http:', '')
+        output = output.replace('>', '')
+
+        return output
 
 
 def trim(string, option=1, replace="f"):
