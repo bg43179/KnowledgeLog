@@ -1,6 +1,7 @@
 import csv
 from collections import deque
 from node import RuleNode
+import config
 
 class TreeNode():
 	def __init__(self, value):
@@ -59,15 +60,16 @@ def build_tree(filename = '../rules.csv'):
 			[first, second, outcome, rule, confidence] = extractor(row)		
 
 			# if any node is created, reuse it. 
-			parent = get_node(outcome, tree_map)
+			if confidence > config.score_threshold:
+				parent = get_node(outcome, tree_map)
 			
-			first_child = get_node(first, tree_map)
-			parent.add_child(first_child, rule, confidence)
+				first_child = get_node(first, tree_map)
+				parent.add_child(first_child, rule, confidence)
 
-			# second may not be null
-			if second != None:
-				second_child = get_node(second, tree_map)
-				parent.add_child(second_child, rule, confidence)
+				# second may not be null
+				if second != None:
+					second_child = get_node(second, tree_map)
+					parent.add_child(second_child, rule, confidence)
 
 	return tree_map
 
@@ -115,6 +117,7 @@ def rule_selector(target, step=2):
 
 	level = 0
 	rules = []
+
 	explored = set([target])
 	queue = deque([tree_map[target]])
 	
@@ -126,7 +129,10 @@ def rule_selector(target, step=2):
 			curr = queue.popleft()
 			
 			rules.extend(remove_cycle(curr.get_rule(), explored))
-
+			# rules = list(filter(lambda x: x[1] > 0.4, rules))
+			
+			if not rules:
+				return [], explored
 			# Add non visited child 
 			for child in curr.get_children():
 
@@ -137,6 +143,7 @@ def rule_selector(target, step=2):
 
 		level += 1
 
+	# rules = list(filter(lambda x: x[1] > 0.4, rules))
 	return rules, explored
 
 def remove_cycle(rules, explored):
@@ -147,6 +154,7 @@ def remove_cycle(rules, explored):
 		# if empty, not explored yet!
 		if node.raw_set.intersection(explored):
 			continue
+		
 		res.append((node.rule, node.conf))
 
 	return res
@@ -167,6 +175,6 @@ if __name__ == "__main__":
 		
 
 	# print(rule_selector("influenced", 1)[0])
-	for i in rule_selector("<dbo:author>", 3)[0]:
+	for i in rule_selector("<dbo:notableWork>", 2)[0]:
 		print(i)
 	# print(rule_selector("<dbo:author>", 2)[0])
