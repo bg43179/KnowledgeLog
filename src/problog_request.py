@@ -5,6 +5,15 @@ import sqlite3
 import os
 from problog.program import PrologString
 from problog import get_evaluatable
+from problog.formula import LogicFormula, LogicDAG
+from problog.ddnnf_formula import DDNNF
+from problog.cnf_formula import CNF
+import loguru
+import sys
+
+loguru.logger.remove()
+#loguru.logger.add(sys.stderr, level='INFO')
+loguru.logger.add(sys.stderr, level='DEBUG')
 
 def problog_model(rules):
     model = ":- use_module(library(db)).\n:- sqlite_load('tmp.db').\n"
@@ -15,8 +24,13 @@ def problog_model(rules):
 def run_problog(rules, target_rule, target_subject):
     model_string = problog_model(rules)
     model_string += "query({}(\'{}\',_)).".format(target_rule, target_subject)
-    print(model_string)
-    result = get_evaluatable().create_from(PrologString(model_string)).evaluate()
+    loguru.logger.debug(model_string)
+    #result = get_evaluatable().create_from(PrologString(model_string)).evaluate()
+    lf = LogicFormula.create_from(model_string)
+    dag = LogicDAG.create_from(lf)
+    cnf = CNF.create_from(dag)
+    ddnnf = DDNNF.create_from(cnf)
+    result = ddnnf.evaluate()
     return result
 
 def pull_from_fuseki(subject, predicate, obj):
@@ -25,7 +39,7 @@ def pull_from_fuseki(subject, predicate, obj):
     return response.json()
 
 def save_to_sqlite(response, predicate, db_con):
-    print(predicate)
+    loguru.logger.debug('save_to_sqlite: ' + predicate)
     cur = db_con.cursor()
     cur.execute('CREATE TABLE {} (subject TEXT NOT NULL, object TEXT NOT NULL);'.format(predicate))
     rows = response['results']['bindings']
@@ -47,17 +61,27 @@ if __name__ == "__main__":
     con = sqlite3.connect('tmp.db')
     #RULE = '<dbo:keyPerson>'
     RULE = '<dbo:notableWork>'
+    #RULE = '<dbo:child>'
     #SUBJECT = '<db:National_Inclusion_Project>'
-    SUBJECT = '<db:Ernest_Hemingway>'
+    #SUBJECT = '<db:Ernest_Hemingway>'
+    #SUBJECT = '<db:Robert_Hewitt_Wolfe>'
+    SUBJECT = '<db:Yasuko_Kobayashi>'
 
     try:
+        loguru.logger.info('Start loading rules....')
         rules, relations = getRules(RULE, rule_type="ProbLog", threshold=0.5)
+        loguru.logger.info('Finish loading rules')
         if len(rules) > 0:
+            loguru.logger.info('Start loading predicates given rules....')
             loader(con, relations)
+            loguru.logger.info('Finish loading predicates given rules')
+
+            loguru.logger.info('Start evaluating....')
             result = run_problog(rules, RULE[5:-1], SUBJECT[4:-1])
+            loguru.logger.info('Finish evaluating')
+
             sorted_result = sorted(result.items(), key=lambda kv: kv[1], reverse=True)
-            print()
-            print('Result:')
+            loguru.logger.info('Result:')
             for res in sorted_result:
                 print(res)
         else:
@@ -65,10 +89,9 @@ if __name__ == "__main__":
         cur = con.cursor()
         cur.execute('SELECT object FROM {} WHERE subject = \'{}\''.format(RULE[5:-1], SUBJECT[4:-1]))
         rows = cur.fetchall()
-        print("Found in database:\n", rows)
-        print()
+        loguru.logger.info('Found in database:', rows)
         con.close()
         os.remove('tmp.db')
     except Exception as e:
-        print(e)
         os.remove('tmp.db')
+        raise
