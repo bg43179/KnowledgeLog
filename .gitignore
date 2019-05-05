@@ -1,5 +1,6 @@
 # ignore all data
 **/data
+**/*.pyc
 
 # ignore all proposals
 *.pdf
